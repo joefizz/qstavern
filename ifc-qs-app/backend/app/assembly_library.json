@@ -1,0 +1,474 @@
+{
+  "version": 1,
+  "notes": [
+    "Each assembly defines a 'match' criteria (AND logic) and a list of 'components'.",
+    "All matching assemblies apply to an element — design recipes to be non-overlapping.",
+    "Formula variables: area (m²), length (m), volume (m³), count (nr), weight (kg).",
+    "Allowed functions in formulas: round(), ceil(), floor(), max(), min().",
+    "Match criteria keys:",
+    "  ifc_type          — exact IFC class string",
+    "  ifc_type_in       — list of IFC class strings (any match)",
+    "  is_external       — boolean",
+    "  material_contains — case-insensitive substring in material field",
+    "  type_name_contains — case-insensitive substring in type_name field"
+  ],
+  "assemblies": [
+    {
+      "id": "ext_wall_weatherboard",
+      "label": "External Weatherboard Wall",
+      "match": {
+        "ifc_type_in": ["IfcWall", "IfcWallStandardCase"],
+        "is_external": true,
+        "material_contains": "weatherboard"
+      },
+      "components": [
+        {
+          "code": "CLG-WB-150",
+          "name": "Weatherboard 150mm",
+          "unit": "m²",
+          "formula": "area * 1.10",
+          "notes": "10% waste factor"
+        },
+        {
+          "code": "BLD-WRP",
+          "name": "Building wrap",
+          "unit": "m²",
+          "formula": "area * 1.05",
+          "notes": "5% laps and waste"
+        },
+        {
+          "code": "BTN-45x45",
+          "name": "Vertical batten 45×45mm",
+          "unit": "lm",
+          "formula": "area * 4.2",
+          "notes": "At 250mm centres"
+        },
+        {
+          "code": "SCW-50-8G",
+          "name": "Cladding screw 50mm 8g stainless",
+          "unit": "nr",
+          "formula": "round(area * 12)",
+          "notes": "~12 per m²"
+        }
+      ]
+    },
+    {
+      "id": "ext_wall_brick",
+      "label": "External Brick Veneer Wall",
+      "match": {
+        "ifc_type_in": ["IfcWall", "IfcWallStandardCase"],
+        "is_external": true,
+        "material_contains": "brick"
+      },
+      "components": [
+        {
+          "code": "BRK-STD",
+          "name": "Standard brick (230×110×76mm)",
+          "unit": "nr",
+          "formula": "round(area * 50)",
+          "notes": "~50 bricks per m² in stretcher bond"
+        },
+        {
+          "code": "BRK-MRT",
+          "name": "Mortar (pre-mix)",
+          "unit": "bag",
+          "formula": "round(area * 0.5)",
+          "notes": "~0.5 bags per m²"
+        },
+        {
+          "code": "BRK-TIE",
+          "name": "Wall tie (stainless)",
+          "unit": "nr",
+          "formula": "round(area * 4.5)",
+          "notes": "At 450×450mm grid"
+        },
+        {
+          "code": "BRK-FLS",
+          "name": "Cavity flashing",
+          "unit": "lm",
+          "formula": "length * 1.05"
+        }
+      ]
+    },
+    {
+      "id": "int_wall_gib",
+      "label": "Internal GIB/Plasterboard Partition",
+      "match": {
+        "ifc_type_in": ["IfcWall", "IfcWallStandardCase"],
+        "is_external": false
+      },
+      "components": [
+        {
+          "code": "GIB-13",
+          "name": "Plasterboard 13mm",
+          "unit": "m²",
+          "formula": "area * 2 * 1.08",
+          "notes": "Both faces + 8% waste"
+        },
+        {
+          "code": "SCW-GIB-32",
+          "name": "GIB fixing screw 32mm",
+          "unit": "nr",
+          "formula": "round(area * 2 * 14)",
+          "notes": "~14 per m² per face"
+        },
+        {
+          "code": "GIB-JCT",
+          "name": "Joint compound",
+          "unit": "kg",
+          "formula": "area * 0.5"
+        },
+        {
+          "code": "GIB-TPE",
+          "name": "Paper jointing tape",
+          "unit": "lm",
+          "formula": "area * 3.5"
+        }
+      ]
+    },
+    {
+      "id": "int_door",
+      "label": "Internal Door Set",
+      "match": {
+        "ifc_type": "IfcDoor",
+        "is_external": false
+      },
+      "components": [
+        {
+          "code": "DOR-ARH-INT",
+          "name": "Architrave set (2 sides)",
+          "unit": "set",
+          "formula": "count"
+        },
+        {
+          "code": "HNG-BT-100",
+          "name": "Butt hinge 100mm",
+          "unit": "nr",
+          "formula": "count * 3"
+        },
+        {
+          "code": "SCW-35-8G",
+          "name": "Hinge screw 35mm 8g",
+          "unit": "nr",
+          "formula": "count * 3 * 4",
+          "notes": "4 screws per hinge leaf pair"
+        },
+        {
+          "code": "DOR-STP",
+          "name": "Door stop 12×38mm",
+          "unit": "lm",
+          "formula": "count * 5.0",
+          "notes": "Approx perimeter allowance"
+        },
+        {
+          "code": "DOR-LCK-INT",
+          "name": "Internal latch set",
+          "unit": "nr",
+          "formula": "count"
+        }
+      ]
+    },
+    {
+      "id": "ext_door",
+      "label": "External Door Set",
+      "match": {
+        "ifc_type": "IfcDoor",
+        "is_external": true
+      },
+      "components": [
+        {
+          "code": "DOR-ARH-EXT",
+          "name": "External architrave set (2 sides)",
+          "unit": "set",
+          "formula": "count"
+        },
+        {
+          "code": "HNG-BT-100-SS",
+          "name": "Butt hinge 100mm stainless",
+          "unit": "nr",
+          "formula": "count * 3"
+        },
+        {
+          "code": "SCW-35-8G-SS",
+          "name": "Hinge screw 35mm 8g stainless",
+          "unit": "nr",
+          "formula": "count * 3 * 4",
+          "notes": "4 screws per hinge leaf pair"
+        },
+        {
+          "code": "DOR-LCK-EXT",
+          "name": "External lockset (deadbolt + handle)",
+          "unit": "nr",
+          "formula": "count"
+        },
+        {
+          "code": "DOR-WEP",
+          "name": "Weatherstrip seal set",
+          "unit": "set",
+          "formula": "count"
+        },
+        {
+          "code": "DOR-THR",
+          "name": "Aluminium threshold bar",
+          "unit": "lm",
+          "formula": "length * count"
+        },
+        {
+          "code": "DOR-STP",
+          "name": "Door stop 12×38mm",
+          "unit": "lm",
+          "formula": "count * 5.0"
+        }
+      ]
+    },
+    {
+      "id": "std_window",
+      "label": "Window Set",
+      "match": {
+        "ifc_type_in": ["IfcWindow", "IfcCurtainWall"]
+      },
+      "components": [
+        {
+          "code": "WIN-SIL",
+          "name": "Window sill (painted pine)",
+          "unit": "lm",
+          "formula": "length * count * 1.05"
+        },
+        {
+          "code": "WIN-TRM",
+          "name": "Window trim/architrave set",
+          "unit": "set",
+          "formula": "count"
+        },
+        {
+          "code": "WIN-FST",
+          "name": "Window stay/fastener",
+          "unit": "nr",
+          "formula": "count"
+        },
+        {
+          "code": "SCW-WIN-30",
+          "name": "Window fixing screw 30mm",
+          "unit": "nr",
+          "formula": "count * 8"
+        }
+      ]
+    },
+    {
+      "id": "concrete_slab",
+      "label": "Concrete Slab (poured)",
+      "match": {
+        "ifc_type": "IfcSlab",
+        "material_contains": "concrete"
+      },
+      "components": [
+        {
+          "code": "CON-RDY-25",
+          "name": "Ready-mix concrete 25MPa",
+          "unit": "m³",
+          "formula": "volume * 1.05",
+          "notes": "5% over-pour/waste"
+        },
+        {
+          "code": "MES-SL8",
+          "name": "SL8 mesh reinforcing",
+          "unit": "m²",
+          "formula": "area * 1.10",
+          "notes": "10% laps"
+        },
+        {
+          "code": "CON-BAR",
+          "name": "Bar chair (plastic, 800mm centres)",
+          "unit": "nr",
+          "formula": "round(area / 0.64)",
+          "notes": "1 per 0.64 m²"
+        },
+        {
+          "code": "CON-VOB",
+          "name": "Void former / polystyrene",
+          "unit": "m²",
+          "formula": "area"
+        }
+      ]
+    },
+    {
+      "id": "roof_framing_timber",
+      "label": "Timber Roof Framing",
+      "match": {
+        "ifc_type": "IfcRoof",
+        "material_contains": "timber"
+      },
+      "components": [
+        {
+          "code": "TBR-RFT",
+          "name": "Roof rafter 90×45mm H3",
+          "unit": "lm",
+          "formula": "area * 3.2",
+          "notes": "At 600mm centres, includes hips/valleys"
+        },
+        {
+          "code": "TBR-RID",
+          "name": "Ridge board 190×45mm",
+          "unit": "lm",
+          "formula": "length * 1.05"
+        },
+        {
+          "code": "STL-STRP",
+          "name": "Rafter tie-down strap",
+          "unit": "nr",
+          "formula": "round(area * 3.2)"
+        },
+        {
+          "code": "SCW-90-14G",
+          "name": "Structural screw 90mm 14g",
+          "unit": "nr",
+          "formula": "round(area * 12)"
+        }
+      ]
+    },
+    {
+      "id": "steel_beam",
+      "label": "Structural Steel Beam",
+      "match": {
+        "ifc_type": "IfcBeam",
+        "material_contains": "steel"
+      },
+      "components": [
+        {
+          "code": "STL-BLT-M16",
+          "name": "Holding-down bolt M16×200",
+          "unit": "nr",
+          "formula": "count * 4"
+        },
+        {
+          "code": "STL-WSH-M16",
+          "name": "Washer M16 (F436)",
+          "unit": "nr",
+          "formula": "count * 8"
+        },
+        {
+          "code": "STL-NUT-M16",
+          "name": "Hex nut M16",
+          "unit": "nr",
+          "formula": "count * 4"
+        },
+        {
+          "code": "STL-PRM",
+          "name": "Zinc primer coat",
+          "unit": "m²",
+          "formula": "length * 1.2 * count"
+        }
+      ]
+    },
+    {
+      "id": "timber_beam",
+      "label": "Timber Beam/Lintel",
+      "match": {
+        "ifc_type": "IfcBeam",
+        "material_contains": "timber"
+      },
+      "components": [
+        {
+          "code": "TBR-JCO",
+          "name": "Joist hanger / beam connector",
+          "unit": "nr",
+          "formula": "count * 2"
+        },
+        {
+          "code": "TBR-SCW-M12",
+          "name": "Coach screw M12×150",
+          "unit": "nr",
+          "formula": "count * 4"
+        }
+      ]
+    },
+    {
+      "id": "structural_column",
+      "label": "Structural Column",
+      "match": {
+        "ifc_type": "IfcColumn"
+      },
+      "components": [
+        {
+          "code": "COL-BPL",
+          "name": "Base plate (welded or bolted)",
+          "unit": "nr",
+          "formula": "count"
+        },
+        {
+          "code": "COL-BLT-M20",
+          "name": "Holding-down bolt M20×300",
+          "unit": "nr",
+          "formula": "count * 4"
+        },
+        {
+          "code": "COL-NUT-M20",
+          "name": "Hex nut M20",
+          "unit": "nr",
+          "formula": "count * 4"
+        },
+        {
+          "code": "COL-WSH-M20",
+          "name": "Washer M20",
+          "unit": "nr",
+          "formula": "count * 8"
+        }
+      ]
+    },
+    {
+      "id": "stair_set",
+      "label": "Stair Set",
+      "match": {
+        "ifc_type_in": ["IfcStair", "IfcStairFlight"]
+      },
+      "components": [
+        {
+          "code": "STR-HND",
+          "name": "Handrail set (per flight)",
+          "unit": "nr",
+          "formula": "count"
+        },
+        {
+          "code": "STR-NOS",
+          "name": "Stair nosing (aluminium)",
+          "unit": "lm",
+          "formula": "length * count * 1.05"
+        },
+        {
+          "code": "STR-BLT-M10",
+          "name": "Stringer fixing bolt M10",
+          "unit": "nr",
+          "formula": "count * 8"
+        }
+      ]
+    },
+    {
+      "id": "std_railing",
+      "label": "Balustrade / Railing",
+      "match": {
+        "ifc_type": "IfcRailing"
+      },
+      "components": [
+        {
+          "code": "RAL-PST",
+          "name": "Balustrade post",
+          "unit": "nr",
+          "formula": "round(length / 1.2 * count) + count",
+          "notes": "At 1200mm max centres plus 1 end post per rail"
+        },
+        {
+          "code": "RAL-BLT-M10",
+          "name": "Post fixing bolt M10",
+          "unit": "nr",
+          "formula": "round(length / 1.2 * count) * 2 + count * 2"
+        },
+        {
+          "code": "RAL-CAP",
+          "name": "Handrail cap",
+          "unit": "lm",
+          "formula": "length * count * 1.05"
+        }
+      ]
+    }
+  ]
+}

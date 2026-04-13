@@ -67,3 +67,57 @@ export interface AggregateRow {
   total_length: number | null
   count: number
 }
+
+// ── Assembly Library ──────────────────────────────────────────────────────────
+
+export interface AssemblyComponentResult {
+  assembly_id: string
+  assembly_label: string
+  code: string | null
+  name: string
+  unit: string
+  quantity: number
+  notes: string | null
+}
+
+export interface AssembledElement extends QuantityRecord {
+  components: AssemblyComponentResult[]
+}
+
+export interface BomRow {
+  code: string
+  name: string
+  unit: string
+  total_quantity: number
+  assemblies: string
+}
+
+// Library editor types
+export interface LibraryComponent {
+  code?: string
+  name: string
+  unit: string
+  formula: string
+  notes?: string
+}
+
+export interface MatchCriteria {
+  ifc_type?: string
+  ifc_type_in?: string[]
+  is_external?: boolean
+  material_contains?: string
+  type_name_contains?: string
+}
+
+export interface AssemblyRecipe {
+  id: string
+  label: string
+  match: MatchCriteria
+  components: LibraryComponent[]
+}
+
+export interface AssemblyLibrary {
+  version: number
+  notes?: string[]
+  assemblies: AssemblyRecipe[]
+}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ModelSummary } from './api/types'
 import { getMe } from './api/endpoints'
+import { AssemblyView } from './components/AssemblyView'
 import { ElementDetailPanel } from './components/ElementDetailPanel'
 import { ExportBar } from './components/ExportBar'
 import { FileLibrary } from './components/FileLibrary'
@@ -13,13 +14,14 @@ import { ProcessingScreen } from './components/ProcessingScreen'
 import { QuantityTable } from './components/QuantityTable'
 import { SummaryDashboard } from './components/SummaryDashboard'
 
-type Tab = 'dashboard' | 'schedule' | 'tree' | 'viewer'
+type Tab = 'dashboard' | 'schedule' | 'assemblies' | 'tree' | 'viewer'
 
 const TAB_LABELS: Record<Tab, string> = {
-  dashboard: 'Dashboard',
-  schedule:  'Schedule',
-  tree:      'IFC Tree',
-  viewer:    '3D View',
+  dashboard:  'Dashboard',
+  schedule:   'Schedule',
+  assemblies: 'Assemblies',
+  tree:       'IFC Tree',
+  viewer:     '3D View',
 }
 
 type AppState =
@@ -91,7 +93,7 @@ function AppInner({ onLogout }: { onLogout: () => void }) {
   }
 
   // ── Resizable panel state ────────────────────────────────────────────────────
-  const [leftPct, setLeftPct] = useState(25)   // left list column width %
+  const [leftPct, setLeftPct] = useState(25)    // left list column width %
   const [detailPx, setDetailPx] = useState(260) // detail panel height px (when 3D+detail both shown)
   const splitContainerRef = useRef<HTMLDivElement>(null)
 
@@ -185,6 +187,7 @@ function AppInner({ onLogout }: { onLogout: () => void }) {
   // ── Main app ────────────────────────────────────────────────────────────────
   const { summary } = state
   const hasSplitPanel = show3D && (tab === 'schedule' || tab === 'tree')
+  const showSplitToggle = tab === 'schedule' || tab === 'tree'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -237,7 +240,7 @@ function AppInner({ onLogout }: { onLogout: () => void }) {
           </div>
 
           {/* 3D panel toggle — only useful on schedule/tree tabs */}
-          {(tab === 'schedule' || tab === 'tree') && (
+          {showSplitToggle && (
             <button
               onClick={() => setShow3D(v => !v)}
               className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
@@ -258,6 +261,36 @@ function AppInner({ onLogout }: { onLogout: () => void }) {
 
       <main className="max-w-7xl mx-auto p-6">
         {tab === 'dashboard' && <SummaryDashboard summary={summary} />}
+        {tab === 'assemblies' && (
+          <div
+            ref={splitContainerRef}
+            className="flex"
+            style={{ height: 'calc(100vh - 14rem)' }}
+          >
+            <div style={{ width: selectedGuid ? `${leftPct}%` : '100%' }} className="min-w-0 flex flex-col transition-all">
+              <AssemblyView
+                summary={summary}
+                selectedGuid={selectedGuid}
+                onSelectGuid={setSelectedGuid}
+              />
+            </div>
+            {selectedGuid && (
+              <>
+                <div
+                  onMouseDown={onHorizDrag}
+                  className="w-1.5 cursor-col-resize flex-shrink-0 bg-gray-200 hover:bg-blue-400 active:bg-blue-500 transition-colors mx-1 rounded-full select-none"
+                />
+                <div className="flex-1 min-w-0">
+                  <ElementDetailPanel
+                    fileId={summary.file_id}
+                    guid={selectedGuid}
+                    onClose={() => setSelectedGuid(null)}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {tab === 'viewer'    && (
           <IFCViewer
             summary={summary}

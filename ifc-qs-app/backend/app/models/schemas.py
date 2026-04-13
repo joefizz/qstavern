@@ -56,6 +56,34 @@ class FileRecord(BaseModel):
     is_processed: bool        # True if element cache exists on disk
 
 
+# ── Assembly Library ──────────────────────────────────────────────────────────
+
+class AssemblyComponentResult(BaseModel):
+    """A single sub-component derived from a matched assembly recipe."""
+    assembly_id: str
+    assembly_label: str
+    code: Optional[str]
+    name: str
+    unit: str
+    quantity: float
+    notes: Optional[str] = None
+
+
+class AssembledElement(BaseModel):
+    """A QuantityRecord with zero or more derived assembly components attached."""
+    guid: str
+    ifc_type: str
+    name: str
+    type_name: Optional[str]
+    type_class: Optional[str]
+    storey: str
+    is_external: bool
+    material: Optional[str]
+    quantities: QuantityValues
+    properties: dict[str, Any]
+    components: list[AssemblyComponentResult]
+
+
 # ── Aggregates ────────────────────────────────────────────────────────────────
 
 class AggregateRow(BaseModel):

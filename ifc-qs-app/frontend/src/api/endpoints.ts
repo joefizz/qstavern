@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { AggregateRow, FileRecord, GeometryMesh, ModelSummary, QuantityRecord, TreeNode, UploadResponse } from './types'
+import type { AggregateRow, AssembledElement, AssemblyLibrary, BomRow, FileRecord, GeometryMesh, ModelSummary, QuantityRecord, TreeNode, UploadResponse } from './types'
 
 export async function login(username: string, password: string): Promise<string> {
   const { data } = await api.post<{ access_token: string }>('/auth/login', { username, password })
@@ -88,5 +88,29 @@ async function _download(url: string, filename: string): Promise<void> {
   URL.revokeObjectURL(a.href)
 }
 
-export const downloadCsv  = (fileId: string) => _download(`/api/files/${fileId}/export/csv`,  `quantities_${fileId}.csv`)
-export const downloadXlsx = (fileId: string) => _download(`/api/files/${fileId}/export/xlsx`, `quantities_${fileId}.xlsx`)
+export const downloadCsv      = (fileId: string) => _download(`/api/files/${fileId}/export/csv`,       `quantities_${fileId}.csv`)
+export const downloadXlsx     = (fileId: string) => _download(`/api/files/${fileId}/export/xlsx`,      `quantities_${fileId}.xlsx`)
+export const downloadXlsxFull = (fileId: string) => _download(`/api/files/${fileId}/export/xlsx-full`, `full_schedule_${fileId}.xlsx`)
+
+export async function getAssembledSchedule(fileId: string): Promise<AssembledElement[]> {
+  const { data } = await api.get<AssembledElement[]>(`/files/${fileId}/assembled-schedule`)
+  return data
+}
+
+export async function getBom(fileId: string): Promise<BomRow[]> {
+  const { data } = await api.get<BomRow[]>(`/files/${fileId}/bom`)
+  return data
+}
+
+export async function getAssemblyLibrary(): Promise<AssemblyLibrary> {
+  const { data } = await api.get<AssemblyLibrary>('/assembly-library')
+  return data
+}
+
+export async function saveAssemblyLibrary(library: AssemblyLibrary): Promise<void> {
+  await api.put('/assembly-library', library)
+}
+
+export async function reloadAssemblyLibrary(): Promise<void> {
+  await api.post('/assembly-library/reload')
+}

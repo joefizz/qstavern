@@ -19,6 +19,7 @@ from app.core.summary import build_summary
 from app.core.tree import build_tree
 from app.models.schemas import (
     AggregateRow,
+    AssembledElement,
     FileRecord,
     ModelSummary,
     QuantityRecord,
@@ -26,7 +27,8 @@ from app.models.schemas import (
 )
 from app.services import cache_store, file_store
 from app.services.aggregator import aggregate
-from app.services.exporter import to_csv, to_xlsx
+from app.services.assembler import apply_assemblies, bom_summary, reload_library
+from app.services.exporter import to_csv, to_xlsx, to_xlsx_assembled
 
 router = APIRouter()
 
@@ -320,6 +322,90 @@ async def export_xlsx(file_id: str):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename=quantities_{file_id}.xlsx"},
     )
+
+
+# ── Assembly Schedule ─────────────────────────────────────────────────────────
+
+@router.get("/files/{file_id}/assembled-schedule", response_model=list[AssembledElement])
+async def get_assembled_schedule(
+    file_id: str,
+    ifc_type: Optional[str] = Query(None),
+    storey: Optional[str] = Query(None),
+    external_only: bool = Query(False),
+):
+    """Return elements with derived assembly components applied.
+
+    Supports the same filters as /quantities. Elements with no matching
+    assemblies are still returned (with an empty components list).
+    """
+    records = _get_elements(file_id)
+
+    if ifc_type:
+        records = [r for r in records if r.ifc_type == ifc_type]
+    if storey:
+        records = [r for r in records if r.storey == storey]
+    if external_only:
+        records = [r for r in records if r.is_external]
+
+    return apply_assemblies(records)
+
+
+@router.get("/files/{file_id}/bom")
+async def get_bom(file_id: str):
+    """Return a rolled-up Bill of Materials — all assembly components summed by item.
+
+    Useful for a quick overview of total material quantities across the model.
+    """
+    records = _get_elements(file_id)
+    assembled = apply_assemblies(records)
+    return bom_summary(assembled)
+
+
+@router.get("/files/{file_id}/export/xlsx-full")
+async def export_xlsx_full(file_id: str):
+    """XLSX export with Schedule, By Type, By Storey, Components, and Bill of Materials sheets."""
+    records = _get_elements(file_id)
+    assembled = apply_assemblies(records)
+    xlsx_bytes = to_xlsx_assembled(records, assembled)
+    return StreamingResponse(
+        iter([xlsx_bytes]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=full_schedule_{file_id}.xlsx"},
+    )
+
+
+@router.post("/assembly-library/reload", status_code=200)
+async def reload_assembly_library():
+    """Reload the assembly_library.json without restarting the container."""
+    reload_library()
+    return {"status": "reloaded"}
+
+
+_ASSEMBLY_LIB_PATH = Path(__file__).parent.parent / "assembly_library.json"
+
+
+@router.get("/assembly-library")
+async def get_assembly_library():
+    """Return the full assembly library JSON."""
+    try:
+        with open(_ASSEMBLY_LIB_PATH, encoding="utf-8") as fh:
+            return json.load(fh)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Assembly library not found")
+
+
+@router.put("/assembly-library", status_code=200)
+async def update_assembly_library(body: dict):
+    """Save an updated assembly library and hot-reload it.
+
+    Body must be the full library object containing an 'assemblies' list.
+    """
+    if "assemblies" not in body or not isinstance(body["assemblies"], list):
+        raise HTTPException(status_code=422, detail="Body must contain an 'assemblies' list")
+    with open(_ASSEMBLY_LIB_PATH, "w", encoding="utf-8") as fh:
+        json.dump(body, fh, indent=2, ensure_ascii=False)
+    reload_library()
+    return {"status": "saved", "count": len(body["assemblies"])}
 
 
 # ── Geometry helpers ──────────────────────────────────────────────────────────
