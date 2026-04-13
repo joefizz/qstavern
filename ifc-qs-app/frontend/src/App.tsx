@@ -1,11 +1,13 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ModelSummary } from './api/types'
+import { getMe } from './api/endpoints'
 import { ElementDetailPanel } from './components/ElementDetailPanel'
 import { ExportBar } from './components/ExportBar'
 import { FileLibrary } from './components/FileLibrary'
 import { FileUpload } from './components/FileUpload'
 import { IFCTree } from './components/IFCTree'
 import { IFCViewer } from './components/IFCViewer'
+import { LoginPage } from './components/LoginPage'
 import { Logo } from './components/Logo'
 import { ProcessingScreen } from './components/ProcessingScreen'
 import { QuantityTable } from './components/QuantityTable'
@@ -26,6 +28,33 @@ type AppState =
   | { phase: 'ready'; summary: ModelSummary }
 
 export default function App() {
+  // ── Auth gate ────────────────────────────────────────────────────────────────
+  const [authed, setAuthed] = useState<boolean | null>(null) // null = checking
+
+  useEffect(() => {
+    const token = localStorage.getItem('qs_token')
+    if (!token) { setAuthed(false); return }
+    getMe().then(() => setAuthed(true)).catch(() => { localStorage.removeItem('qs_token'); setAuthed(false) })
+  }, [])
+
+  const handleLogout = () => {
+    localStorage.removeItem('qs_token')
+    setAuthed(false)
+  }
+
+  if (authed === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-sm text-gray-400">Loading…</div>
+      </div>
+    )
+  }
+  if (!authed) return <LoginPage onLogin={() => setAuthed(true)} />
+
+  return <AppInner onLogout={handleLogout} />
+}
+
+function AppInner({ onLogout }: { onLogout: () => void }) {
   const [state, setState] = useState<AppState>({ phase: 'upload' })
   const [tab, setTab] = useState<Tab>('dashboard')
   const [processingError, setProcessingError] = useState<string | null>(null)
@@ -117,7 +146,9 @@ export default function App() {
   if (state.phase === 'upload') {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8 gap-8">
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-4">
+          <img src="/hull-construction-logo.png" alt="Hull Construction" className="h-10 object-contain" />
+          <div className="w-px h-4 bg-gray-300" />
           <Logo size={56} showWordmark showTagline />
         </div>
 
@@ -131,6 +162,10 @@ export default function App() {
             {processingError}
           </p>
         )}
+
+        <button onClick={onLogout} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+          Sign out
+        </button>
       </div>
     )
   }
@@ -156,6 +191,8 @@ export default function App() {
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
+            <img src="/hull-construction-logo.png" alt="Hull Construction" className="h-7 object-contain" />
+            <div className="w-px h-8 bg-gray-200" />
             <Logo size={32} showWordmark={false} />
             <div className="w-px h-8 bg-gray-200" />
             <button onClick={handleReset} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
@@ -168,7 +205,16 @@ export default function App() {
               </p>
             </div>
           </div>
-          <ExportBar fileId={summary.file_id} />
+          <div className="flex items-center gap-3">
+            <ExportBar fileId={summary.file_id} />
+            <button
+              onClick={onLogout}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-1"
+              title="Sign out"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
 
@@ -257,7 +303,7 @@ export default function App() {
             <div className="flex-1 min-w-0 flex flex-col">
               {/* 3D viewer */}
               {hasSplitPanel && (
-                <div className={selectedGuid ? 'flex-1 min-h-0' : 'h-full'}>
+                <div className={`flex flex-col ${selectedGuid ? 'flex-1 min-h-0' : 'h-full'}`}>
                   <IFCViewer
                     summary={summary}
                     selectedGuid={selectedGuid}

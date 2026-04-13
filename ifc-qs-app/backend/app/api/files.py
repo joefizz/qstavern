@@ -49,20 +49,37 @@ _element_cache: dict[str, list[QuantityRecord]] = {}
 # Cache for geometry meshes
 _geometry_cache: dict[str, list[dict]] = {}
 
+# Bump this when TARGET_TYPES or color/opacity logic changes — invalidates disk caches
+_GEOMETRY_CACHE_VERSION = 3
+
 # IFC type → RGB colour (0.0–1.0)
 _TYPE_COLORS: dict[str, tuple[float, float, float]] = {
-    "IfcWall":             (0.86, 0.83, 0.76),
-    "IfcWallStandardCase": (0.86, 0.83, 0.76),
-    "IfcSlab":             (0.72, 0.72, 0.70),
-    "IfcRoof":             (0.72, 0.38, 0.30),
-    "IfcBeam":             (0.55, 0.70, 0.85),
-    "IfcColumn":           (0.50, 0.70, 0.50),
-    "IfcDoor":             (0.62, 0.46, 0.30),
-    "IfcWindow":           (0.65, 0.82, 0.94),
-    "IfcStair":            (0.78, 0.78, 0.58),
-    "IfcRailing":          (0.52, 0.52, 0.62),
-    "IfcCovering":         (0.82, 0.80, 0.74),
-    "IfcCurtainWall":      (0.65, 0.82, 0.94),
+    "IfcWall":                  (0.86, 0.83, 0.76),
+    "IfcWallStandardCase":      (0.86, 0.83, 0.76),
+    "IfcSlab":                  (0.72, 0.72, 0.70),
+    "IfcRoof":                  (0.72, 0.38, 0.30),
+    "IfcBeam":                  (0.55, 0.70, 0.85),
+    "IfcColumn":                (0.50, 0.70, 0.50),
+    "IfcDoor":                  (0.62, 0.46, 0.30),
+    "IfcWindow":                (0.65, 0.82, 0.94),
+    "IfcStair":                 (0.78, 0.78, 0.58),
+    "IfcStairFlight":           (0.78, 0.78, 0.58),
+    "IfcRailing":               (0.52, 0.52, 0.62),
+    "IfcRamp":                  (0.75, 0.72, 0.55),
+    "IfcRampFlight":            (0.75, 0.72, 0.55),
+    "IfcCovering":              (0.82, 0.80, 0.74),
+    "IfcCurtainWall":           (0.65, 0.82, 0.94),
+    "IfcPlate":                 (0.60, 0.72, 0.80),
+    "IfcMember":                (0.55, 0.65, 0.78),
+    "IfcPile":                  (0.58, 0.55, 0.50),
+    "IfcFooting":               (0.62, 0.60, 0.55),
+    "IfcFurnishingElement":     (0.80, 0.65, 0.50),
+    "IfcFurniture":             (0.80, 0.65, 0.50),
+    "IfcSystemFurnitureElement":(0.78, 0.65, 0.52),
+    "IfcSanitaryTerminal":      (0.90, 0.90, 0.90),
+    "IfcElectricAppliance":     (0.70, 0.70, 0.75),
+    "IfcSite":                  (0.45, 0.65, 0.35),
+    "IfcBuildingElementProxy":  (0.72, 0.68, 0.62),
 }
 _DEFAULT_COLOR: tuple[float, float, float] = (0.75, 0.75, 0.75)
 _TRANSPARENT_TYPES = {"IfcWindow", "IfcCurtainWall"}
@@ -319,9 +336,16 @@ def _extract_geometry(path, progress_cb=None) -> list[dict]:
     geo_settings.set(geo_settings.USE_WORLD_COORDS, True)
     geo_settings.set(geo_settings.WELD_VERTICES, True)
 
+    seen_ids: set[int] = set()
     elements = []
     for ifc_type in TARGET_TYPES:
-        elements.extend(ifc.by_type(ifc_type))
+        try:
+            for el in ifc.by_type(ifc_type, include_subtypes=True):
+                if el.id() not in seen_ids:
+                    seen_ids.add(el.id())
+                    elements.append(el)
+        except Exception:
+            pass  # Type not in this schema (e.g. IFC4-only type in IFC2X3 file)
 
     if not elements:
         return []
@@ -389,7 +413,7 @@ async def extract_geometry_progress(file_id: str):
             return
 
         # Disk cache hit
-        cached = cache_store.load_geometry_cache(file_id)
+        cached = cache_store.load_geometry_cache(file_id, version=_GEOMETRY_CACHE_VERSION)
         if cached is not None:
             _geometry_cache[file_id] = cached
             yield sse({"stage": "cached", "percent": 100, "message": f"Loaded {len(cached)} meshes from cache"})
@@ -412,7 +436,7 @@ async def extract_geometry_progress(file_id: str):
                 meshes = _extract_geometry(path, progress_cb=push)
                 _geometry_cache[file_id] = meshes
                 push(97, "Saving to disk cache…")
-                cache_store.save_geometry_cache(file_id, meshes)
+                cache_store.save_geometry_cache(file_id, meshes, version=_GEOMETRY_CACHE_VERSION)
                 loop.call_soon_threadsafe(q.put_nowait, {
                     "stage": "complete",
                     "percent": 100,
@@ -450,7 +474,7 @@ async def get_geometry(file_id: str):
         return JSONResponse(content=_geometry_cache[file_id])
 
     # Try disk cache (survives restarts)
-    cached = cache_store.load_geometry_cache(file_id)
+    cached = cache_store.load_geometry_cache(file_id, version=_GEOMETRY_CACHE_VERSION)
     if cached is not None:
         _geometry_cache[file_id] = cached
         return JSONResponse(content=cached)

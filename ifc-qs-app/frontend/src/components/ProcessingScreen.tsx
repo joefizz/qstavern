@@ -43,7 +43,8 @@ export function ProcessingScreen({ fileId, fileName, onComplete, onError }: Prop
   }, [percent])
 
   useEffect(() => {
-    const es = new EventSource(`/api/files/${fileId}/process`)
+    const token = localStorage.getItem('qs_token') ?? ''
+    const es = new EventSource(`/api/files/${fileId}/process?token=${encodeURIComponent(token)}`)
 
     es.onmessage = (e: MessageEvent) => {
       const data: ProgressEvent = JSON.parse(e.data)

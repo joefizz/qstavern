@@ -7,6 +7,13 @@ class Settings(BaseSettings):
     max_file_size_mb: int = 200
     cors_origins: str = "http://localhost:3000"
 
+    # Auth — override these in .env for production
+    secret_key: str = "change-me-in-production-use-a-long-random-string"
+    access_token_expire_hours: int = 8
+    # Seed admin credentials (used only when no users.json exists yet)
+    admin_username: str = "admin"
+    admin_password: str = "changeme"
+
     @property
     def upload_path(self) -> Path:
         return Path(self.upload_dir)

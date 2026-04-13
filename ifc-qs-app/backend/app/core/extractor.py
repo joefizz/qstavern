@@ -25,12 +25,26 @@ from app.models.schemas import QuantityRecord, QuantityValues
 logger = logging.getLogger(__name__)
 
 TARGET_TYPES = [
+    # Structural shell
     "IfcWall", "IfcWallStandardCase",
     "IfcSlab", "IfcRoof",
     "IfcBeam", "IfcColumn",
+    # Openings
     "IfcDoor", "IfcWindow",
-    "IfcStair", "IfcRailing",
+    # Circulation
+    "IfcStair", "IfcStairFlight", "IfcRailing", "IfcRamp", "IfcRampFlight",
+    # Finishes / secondary
     "IfcCovering", "IfcCurtainWall",
+    # Structural detail
+    "IfcPlate", "IfcMember",
+    "IfcPile", "IfcFooting",
+    # Furnishings & equipment
+    "IfcFurnishingElement", "IfcFurniture", "IfcSystemFurnitureElement",
+    "IfcSanitaryTerminal", "IfcElectricAppliance",
+    # Site / landscape (trees, site features)
+    "IfcSite",
+    # Catch-all proxy (often used for vegetation, custom elements, etc.)
+    "IfcBuildingElementProxy",
 ]
 
 
@@ -225,7 +239,10 @@ def extract_elements(
 
     n_types = len(TARGET_TYPES)
     for i, ifc_type in enumerate(TARGET_TYPES):
-        elements = ifc_file.by_type(ifc_type)
+        try:
+            elements = ifc_file.by_type(ifc_type)
+        except Exception:
+            continue  # Type not in this schema (e.g. IFC4-only type in IFC2X3 file)
         pct = 25 + int((i / n_types) * 50)  # 25 → 75 %
         if elements:
             report(pct, f"Extracting {ifc_type} ({len(elements)} element{'s' if len(elements) != 1 else ''})…")

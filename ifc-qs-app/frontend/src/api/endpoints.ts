@@ -1,6 +1,16 @@
 import { api } from './client'
 import type { AggregateRow, FileRecord, GeometryMesh, ModelSummary, QuantityRecord, TreeNode, UploadResponse } from './types'
 
+export async function login(username: string, password: string): Promise<string> {
+  const { data } = await api.post<{ access_token: string }>('/auth/login', { username, password })
+  return data.access_token
+}
+
+export async function getMe(): Promise<{ username: string; role: string }> {
+  const { data } = await api.get('/auth/me')
+  return data
+}
+
 export async function uploadFile(
   file: File,
   onProgress?: (pct: number) => void,
@@ -66,10 +76,17 @@ export async function deleteFile(fileId: string): Promise<void> {
   await api.delete(`/files/${fileId}`)
 }
 
-export function csvUrl(fileId: string): string {
-  return `/api/files/${fileId}/export/csv`
+async function _download(url: string, filename: string): Promise<void> {
+  const token = localStorage.getItem('qs_token') ?? ''
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error(`Download failed: ${res.status}`)
+  const blob = await res.blob()
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
 }
 
-export function xlsxUrl(fileId: string): string {
-  return `/api/files/${fileId}/export/xlsx`
-}
+export const downloadCsv  = (fileId: string) => _download(`/api/files/${fileId}/export/csv`,  `quantities_${fileId}.csv`)
+export const downloadXlsx = (fileId: string) => _download(`/api/files/${fileId}/export/xlsx`, `quantities_${fileId}.xlsx`)

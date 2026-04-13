@@ -63,17 +63,29 @@ def has_geometry_cache(file_id: str) -> bool:
     return _geo_path(file_id).exists()
 
 
-def save_geometry_cache(file_id: str, meshes: list[dict]) -> None:
-    data = json.dumps(meshes).encode("utf-8")
+def save_geometry_cache(file_id: str, meshes: list[dict], version: int = 1) -> None:
+    payload = {"version": version, "meshes": meshes}
+    data = json.dumps(payload).encode("utf-8")
     _geo_path(file_id).write_bytes(gzip.compress(data, compresslevel=6))
 
 
-def load_geometry_cache(file_id: str) -> Optional[list[dict]]:
+def load_geometry_cache(file_id: str, version: int = 1) -> Optional[list[dict]]:
     path = _geo_path(file_id)
     if not path.exists():
         return None
     try:
-        return json.loads(gzip.decompress(path.read_bytes()).decode("utf-8"))
+        raw = json.loads(gzip.decompress(path.read_bytes()).decode("utf-8"))
+        # Support old format (bare list) or new versioned format
+        if isinstance(raw, list):
+            meshes = raw
+            cached_version = 1
+        else:
+            cached_version = raw.get("version", 1)
+            meshes = raw.get("meshes", [])
+        if cached_version != version:
+            path.unlink(missing_ok=True)
+            return None
+        return meshes
     except Exception:
         path.unlink(missing_ok=True)
         return None
