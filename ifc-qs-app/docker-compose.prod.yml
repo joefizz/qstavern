@@ -1,5 +1,23 @@
 services:
   frontend:
+    # Not exposed directly — Caddy proxies to it
+    ports: []
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+    depends_on:
+      - frontend
+
+volumes:
+  caddy_data:
+  caddy_config:

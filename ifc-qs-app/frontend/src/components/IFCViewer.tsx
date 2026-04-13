@@ -189,10 +189,12 @@ function CameraFocuser({
 function Scene({
   meshes,
   selectedGuid,
+  ghostMode,
   onSelect,
 }: {
   meshes: GeometryMesh[]
   selectedGuid: string | null
+  ghostMode: boolean
   onSelect: (guid: string) => void
 }) {
   const { groupPos, groupScale, camDist } = useMemo<{
@@ -251,7 +253,7 @@ function Scene({
             key={m.guid}
             mesh={m}
             isSelected={m.guid === selectedGuid}
-            dimmed={!!selectedGuid && m.guid !== selectedGuid}
+            dimmed={ghostMode && !!selectedGuid && m.guid !== selectedGuid}
             onClick={() => onSelect(m.guid)}
           />
         ))}
@@ -260,7 +262,7 @@ function Scene({
             key={m.guid}
             mesh={m}
             isSelected={m.guid === selectedGuid}
-            dimmed={!!selectedGuid && m.guid !== selectedGuid}
+            dimmed={ghostMode && !!selectedGuid && m.guid !== selectedGuid}
             onClick={() => onSelect(m.guid)}
           />
         ))}
@@ -376,6 +378,15 @@ function ViewerCanvas({
   presentTypes: string[]
   showHint: boolean
 }) {
+  const [ghostMode, setGhostMode] = useState(true)
+
+  // Clear ghost mode when selection is cleared
+  useEffect(() => {
+    if (!selectedGuid) setGhostMode(true)
+  }, [selectedGuid])
+
+  const btnBase = 'h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded text-xs select-none transition-colors px-2'
+
   return (
     <div
       className="relative rounded-lg overflow-hidden border border-gray-200 bg-[#1a1f2e] flex-1"
@@ -392,25 +403,31 @@ function ViewerCanvas({
         <Scene
           meshes={meshes}
           selectedGuid={selectedGuid}
+          ghostMode={ghostMode}
           onSelect={onSelectGuid}
         />
       </Canvas>
 
       {/* On-screen control buttons */}
       <div className="absolute top-3 left-1/2 -translate-x-1/2 flex gap-1 pointer-events-auto">
-        <button
-          onClick={() => controlsRef.zoom?.(1)}
+        <button onClick={() => controlsRef.zoom?.(1)}
           className="w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded text-lg leading-none select-none transition-colors"
-          title="Zoom in"
-        >+</button>
-        <button
-          onClick={() => controlsRef.zoom?.(-1)}
+          title="Zoom in">+</button>
+        <button onClick={() => controlsRef.zoom?.(-1)}
           className="w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded text-lg leading-none select-none transition-colors"
-          title="Zoom out"
-        >−</button>
+          title="Zoom out">−</button>
+        {selectedGuid && (
+          <button
+            onClick={() => setGhostMode(g => !g)}
+            className={`${btnBase} ${ghostMode ? 'bg-blue-600/70 hover:bg-blue-600' : ''}`}
+            title="Toggle ghost mode"
+          >
+            {ghostMode ? '👻 Ghost on' : '👻 Ghost off'}
+          </button>
+        )}
         <button
           onClick={() => { controlsRef.resetView?.(); onSelectGuid(null) }}
-          className="h-8 px-2 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded text-xs select-none transition-colors"
+          className={btnBase}
           title="Reset camera and clear selection"
         >⟳ Reset</button>
       </div>
