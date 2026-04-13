@@ -36,17 +36,27 @@ def _save(users: list[dict]) -> None:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def seed_admin() -> None:
-    """Create the default admin if no users exist yet."""
-    if _load():
-        return
-    users = [
-        {
+    """Create the default admin if no users exist, or sync the password if it changed in .env."""
+    users = _load()
+    if not users:
+        _save([{
             "username": settings.admin_username,
             "hashed_password": hash_password(settings.admin_password),
             "role": "admin",
-        }
-    ]
-    _save(users)
+        }])
+        return
+
+    # If the env admin already exists but the password no longer matches, update it.
+    # This lets you change ADMIN_PASSWORD in .env and restart to take effect.
+    changed = False
+    for user in users:
+        if user["username"] == settings.admin_username:
+            if not verify_password(settings.admin_password, user["hashed_password"]):
+                user["hashed_password"] = hash_password(settings.admin_password)
+                changed = True
+            break
+    if changed:
+        _save(users)
 
 
 def authenticate(username: str, password: str) -> Optional[dict]:

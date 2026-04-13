@@ -14,11 +14,12 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// On 401, clear token and redirect to login
+// On 401, clear token and redirect to login — but only if we had a token
+// (a 401 during login means wrong password, not an expired session)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && localStorage.getItem('qs_token')) {
       localStorage.removeItem('qs_token')
       window.location.reload()
     }
