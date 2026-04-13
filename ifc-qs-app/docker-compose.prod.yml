@@ -1,30 +1,24 @@
 services:
   frontend:
+    # Caddy proxies to this — not exposed directly
+    ports: []
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+    env_file: .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+    depends_on:
+      - frontend
 
-  # ── Optional: enable when you have a domain pointed at this server ───────────
-  # Caddy handles TLS automatically via Let's Encrypt.
-  # To activate:
-  #   1. Set DOMAIN=yourdomain.com in .env
-  #   2. Uncomment the caddy service below
-  #   3. Comment out the ports above (Caddy will proxy to frontend:80 instead)
-  #
-  # caddy:
-  #   image: caddy:2-alpine
-  #   restart: unless-stopped
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
-  #     - caddy_data:/data
-  #     - caddy_config:/config
-  #   networks:
-  #     - internal
-  #   depends_on:
-  #     - frontend
-
-# volumes:
-#   caddy_data:
-#   caddy_config:
+volumes:
+  caddy_data:
+  caddy_config:
