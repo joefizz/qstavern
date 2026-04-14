@@ -88,12 +88,17 @@ export function ElementDetailPanel({ fileId, guid, onClose }: Props) {
                 {record.quantities.source}
               </span>
             </div>
-            <Row label="Length" value={record.quantities.length != null ? `${fmt(record.quantities.length)} m`    : '—'} />
-            <Row label="Area"   value={record.quantities.area   != null ? `${fmt(record.quantities.area, 2)} m²`  : '—'} />
-            <Row label="Volume" value={record.quantities.volume != null ? `${fmt(record.quantities.volume, 3)} m³` : '—'} />
-            {record.quantities.weight != null && (
-              <Row label="Weight" value={`${fmt(record.quantities.weight, 1)} kg`} />
-            )}
+            {Object.keys(record.quantities.all_quantities).length > 0
+              ? Object.entries(record.quantities.all_quantities).map(([name, val]) => (
+                  <Row key={name} label={name} value={fmt(val, 3)} />
+                ))
+              : <>
+                  {record.quantities.length != null && <Row label="Length" value={`${fmt(record.quantities.length)} m`} />}
+                  {record.quantities.area   != null && <Row label="Area"   value={`${fmt(record.quantities.area, 2)} m²`} />}
+                  {record.quantities.volume != null && <Row label="Volume" value={`${fmt(record.quantities.volume, 3)} m³`} />}
+                  {record.quantities.weight != null && <Row label="Weight" value={`${fmt(record.quantities.weight, 1)} kg`} />}
+                </>
+            }
           </div>
 
           {/* Properties */}

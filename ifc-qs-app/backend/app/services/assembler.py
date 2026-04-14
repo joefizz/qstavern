@@ -127,6 +127,10 @@ def _get_field_value(element: QuantityRecord, field: str) -> Any:
         return _simple[field]
     if field.startswith("properties."):
         return element.properties.get(field[len("properties."):])
+    # Allow matching on any raw IFC quantity by its original name, e.g. "quantities.Height"
+    if field.startswith("quantities."):
+        key = field[len("quantities."):]
+        return element.quantities.all_quantities.get(key)
     return None
 
 

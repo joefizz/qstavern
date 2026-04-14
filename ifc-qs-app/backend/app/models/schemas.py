@@ -38,12 +38,15 @@ class QuantityRecord(BaseModel):
 
 
 class QuantityValues(BaseModel):
-    length: Optional[float] = None
-    area: Optional[float] = None
-    volume: Optional[float] = None
+    # Canonical fields — used by assembly formula engine
+    length: Optional[float] = None   # primary run / span (m)
+    area: Optional[float] = None     # net or primary area (m²)
+    volume: Optional[float] = None   # net or primary volume (m³)
     count: int = 1
-    weight: Optional[float] = None
+    weight: Optional[float] = None   # kg
     source: str  # "authored" | "estimated"
+    # All IFC-authored quantities with original names, normalised to m / m² / m³ / kg
+    all_quantities: dict[str, float] = {}
 
 
 # ── File library ──────────────────────────────────────────────────────────────

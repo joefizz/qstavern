@@ -132,13 +132,26 @@ def _is_external(element, props: dict[str, Any]) -> bool:
 
 # ── BaseQuantity extraction ────────────────────────────────────────────────────
 
-# Length quantity names worth capturing (broad — catches Length, NominalLength, etc.)
-_LENGTH_NAMES = {"length", "nominallength", "overalllength", "height", "depth", "span"}
+# Canonical length-name fragments — used only to populate the formula-engine `length` variable.
+# Everything else is stored verbatim in all_quantities.
+_CANONICAL_LENGTH_NAMES = {"length", "nominallength", "overalllength", "span"}
 
 
 def _get_base_quantities(element, units: UnitConfig) -> Optional[QuantityValues]:
-    """Walk all IfcElementQuantity sets and normalise using per-dimension units."""
-    qty: dict[str, Optional[float]] = {}
+    """Walk all IfcElementQuantity sets and collect every quantity.
+
+    Strategy:
+    - all_quantities: stores EVERY IFC quantity with its original name, normalised to
+      m / m² / m³ / kg.  Nothing is dropped or renamed.
+    - Canonical scalar fields (length, area, volume, weight) are derived from
+      all_quantities for use in assembly formula evaluation:
+        * length  — first quantity whose name contains "length" or "span"
+        * area    — net area preferred; otherwise first area quantity
+        * volume  — net volume preferred; otherwise first volume quantity
+        * weight  — first weight quantity
+    """
+    all_qty: dict[str, float] = {}
+    canonical: dict[str, float] = {}
     try:
         for rel in element.IsDefinedBy:
             if rel.is_a("IfcRelDefinesByProperties"):
@@ -146,35 +159,50 @@ def _get_base_quantities(element, units: UnitConfig) -> Optional[QuantityValues]
                 if not defn.is_a("IfcElementQuantity"):
                     continue
                 for q in defn.Quantities:
-                    name = (q.Name or "").lower()
+                    raw_name = q.Name or "Unnamed"
+                    name_low = raw_name.lower().replace(" ", "")
+
                     if q.is_a("IfcQuantityLength"):
-                        # Take the first length-ish quantity we haven't captured yet
-                        if "length" not in qty and any(k in name for k in _LENGTH_NAMES):
-                            qty["length"] = normalise_length(q.LengthValue, units.length)
+                        val = normalise_length(q.LengthValue, units.length)
+                        all_qty[raw_name] = val
+                        if "length" not in canonical and any(k in name_low for k in _CANONICAL_LENGTH_NAMES):
+                            canonical["length"] = val
+
                     elif q.is_a("IfcQuantityArea"):
-                        # Prefer net; accept any first area
-                        if "net" in name or "area" not in qty:
-                            qty["area"] = normalise_area(q.AreaValue, units.area)
+                        val = normalise_area(q.AreaValue, units.area)
+                        all_qty[raw_name] = val
+                        if "net" in name_low or "area" not in canonical:
+                            canonical["area"] = val
+
                     elif q.is_a("IfcQuantityVolume"):
-                        # Prefer net; accept any first volume
-                        if "net" in name or "volume" not in qty:
-                            qty["volume"] = normalise_volume(q.VolumeValue, units.volume)
+                        val = normalise_volume(q.VolumeValue, units.volume)
+                        all_qty[raw_name] = val
+                        if "net" in name_low or "volume" not in canonical:
+                            canonical["volume"] = val
+
                     elif q.is_a("IfcQuantityWeight"):
-                        if "weight" not in qty:
-                            qty["weight"] = q.WeightValue
+                        val = q.WeightValue
+                        all_qty[raw_name] = val
+                        if "weight" not in canonical:
+                            canonical["weight"] = val
+
+                    elif q.is_a("IfcQuantityCount"):
+                        all_qty[raw_name] = float(q.CountValue)
+
     except AttributeError:
         pass
 
-    if not qty:
+    if not all_qty:
         return None
 
     return QuantityValues(
-        length=qty.get("length"),
-        area=qty.get("area"),
-        volume=qty.get("volume"),
+        length=canonical.get("length"),
+        area=canonical.get("area"),
+        volume=canonical.get("volume"),
         count=1,
-        weight=qty.get("weight"),
+        weight=canonical.get("weight"),
         source="authored",
+        all_quantities=all_qty,
     )
 
 

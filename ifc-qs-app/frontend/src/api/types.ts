@@ -19,6 +19,7 @@ export interface QuantityValues {
   count: number
   weight: number | null
   source: 'authored' | 'estimated'
+  all_quantities: Record<string, number>
 }
 
 export interface QuantityRecord {
