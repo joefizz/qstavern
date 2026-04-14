@@ -17,7 +17,10 @@
       "id": "ext_wall_weatherboard",
       "label": "External Weatherboard Wall",
       "match": {
-        "ifc_type_in": ["IfcWall", "IfcWallStandardCase"],
+        "ifc_type_in": [
+          "IfcWall",
+          "IfcWallStandardCase"
+        ],
         "is_external": true,
         "material_contains": "weatherboard"
       },
@@ -56,7 +59,10 @@
       "id": "ext_wall_brick",
       "label": "External Brick Veneer Wall",
       "match": {
-        "ifc_type_in": ["IfcWall", "IfcWallStandardCase"],
+        "ifc_type_in": [
+          "IfcWall",
+          "IfcWallStandardCase"
+        ],
         "is_external": true,
         "material_contains": "brick"
       },
@@ -94,7 +100,10 @@
       "id": "int_wall_gib",
       "label": "Internal GIB/Plasterboard Partition",
       "match": {
-        "ifc_type_in": ["IfcWall", "IfcWallStandardCase"],
+        "ifc_type_in": [
+          "IfcWall",
+          "IfcWallStandardCase"
+        ],
         "is_external": false
       },
       "components": [
@@ -225,7 +234,10 @@
       "id": "std_window",
       "label": "Window Set",
       "match": {
-        "ifc_type_in": ["IfcWindow", "IfcCurtainWall"]
+        "ifc_type_in": [
+          "IfcWindow",
+          "IfcCurtainWall"
+        ]
       },
       "components": [
         {
@@ -419,7 +431,10 @@
       "id": "stair_set",
       "label": "Stair Set",
       "match": {
-        "ifc_type_in": ["IfcStair", "IfcStairFlight"]
+        "ifc_type_in": [
+          "IfcStair",
+          "IfcStairFlight"
+        ]
       },
       "components": [
         {
@@ -467,6 +482,23 @@
           "name": "Handrail cap",
           "unit": "lm",
           "formula": "length * count * 1.05"
+        }
+      ]
+    },
+    {
+      "id": "assembly_1776144231920",
+      "label": "Roof SIP Panel",
+      "match": {
+        "ifc_type": "IfcRoof",
+        "type_name_contains": "Composite"
+      },
+      "components": [
+        {
+          "code": "SIP-123",
+          "name": "SIP Panel 265mm",
+          "unit": "nr",
+          "formula": "count",
+          "notes": ""
         }
       ]
     }
