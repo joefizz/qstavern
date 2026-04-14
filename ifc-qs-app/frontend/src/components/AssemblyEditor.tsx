@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getAssemblyLibrary, saveAssemblyLibrary } from '../api/endpoints'
-import type { AssemblyLibrary, AssemblyRecipe, LibraryComponent, MatchCriteria } from '../api/types'
+import type { AssemblyLibrary, AssemblyRecipe, LibraryComponent, MatchCriteria, MatchRule } from '../api/types'
 
 const IFC_TYPES = [
   'IfcWall', 'IfcWallStandardCase', 'IfcSlab', 'IfcRoof',
@@ -11,16 +11,84 @@ const IFC_TYPES = [
 
 const UNITS = ['m²', 'm³', 'lm', 'nr', 'kg', 'set', 'bag', 'tonne', 'hr']
 
+// ── Field / operator metadata ─────────────────────────────────────────────────
+
+const FIELD_OPTIONS = [
+  { group: 'Element',     value: 'ifc_type',          label: 'IFC Type',        type: 'string'  },
+  { group: 'Element',     value: 'name',               label: 'Name',            type: 'string'  },
+  { group: 'Element',     value: 'type_name',          label: 'Type Name',       type: 'string'  },
+  { group: 'Element',     value: 'type_class',         label: 'Type Class',      type: 'string'  },
+  { group: 'Element',     value: 'material',           label: 'Material',        type: 'string'  },
+  { group: 'Element',     value: 'storey',             label: 'Storey',          type: 'string'  },
+  { group: 'Element',     value: 'is_external',        label: 'Is External',     type: 'boolean' },
+  { group: 'Quantities',  value: 'quantities.area',    label: 'Area (m²)',       type: 'number'  },
+  { group: 'Quantities',  value: 'quantities.length',  label: 'Length (m)',      type: 'number'  },
+  { group: 'Quantities',  value: 'quantities.volume',  label: 'Volume (m³)',     type: 'number'  },
+  { group: 'Quantities',  value: 'quantities.count',   label: 'Count',           type: 'number'  },
+  { group: 'Quantities',  value: 'quantities.weight',  label: 'Weight (kg)',     type: 'number'  },
+  { group: 'Property',    value: '__property__',        label: 'Property…',       type: 'property'},
+] as const
+
+type FieldType = 'string' | 'number' | 'boolean' | 'property'
+
+const OPS: Record<FieldType, { value: string; label: string }[]> = {
+  string: [
+    { value: 'contains',     label: 'contains' },
+    { value: 'not_contains', label: 'does not contain' },
+    { value: 'equals',       label: 'equals' },
+    { value: 'not_equals',   label: 'does not equal' },
+    { value: 'starts_with',  label: 'starts with' },
+    { value: 'ends_with',    label: 'ends with' },
+  ],
+  number: [
+    { value: 'equals',    label: '=' },
+    { value: 'not_equals',label: '≠' },
+    { value: 'gt',        label: '>' },
+    { value: 'gte',       label: '≥' },
+    { value: 'lt',        label: '<' },
+    { value: 'lte',       label: '≤' },
+  ],
+  boolean: [
+    { value: 'equals',     label: 'is' },
+    { value: 'not_equals', label: 'is not' },
+  ],
+  property: [
+    { value: 'contains',     label: 'contains' },
+    { value: 'not_contains', label: 'does not contain' },
+    { value: 'equals',       label: 'equals' },
+    { value: 'not_equals',   label: 'does not equal' },
+  ],
+}
+
+function fieldType(fieldValue: string): FieldType {
+  const f = FIELD_OPTIONS.find(o => o.value === fieldValue)
+  return (f?.type ?? 'string') as FieldType
+}
+
+function defaultOp(ft: FieldType): string {
+  return OPS[ft][0].value
+}
+
+function newRule(): MatchRule {
+  return { field: 'material', op: 'contains', value: '' }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function matchSummary(match: MatchCriteria): string {
   const parts: string[] = []
-  if (match.ifc_type)          parts.push(match.ifc_type)
+  if (match.ifc_type)            parts.push(match.ifc_type)
   if (match.ifc_type_in?.length) parts.push(match.ifc_type_in.join(' or '))
   if (match.is_external === true)  parts.push('external')
   if (match.is_external === false) parts.push('internal')
-  if (match.material_contains)  parts.push(`material: "${match.material_contains}"`)
-  if (match.type_name_contains) parts.push(`type name: "${match.type_name_contains}"`)
+  if (match.material_contains)   parts.push(`material contains "${match.material_contains}"`)
+  if (match.type_name_contains)  parts.push(`type name contains "${match.type_name_contains}"`)
+  for (const r of match.rules ?? []) {
+    const fl = FIELD_OPTIONS.find(o => o.value === r.field || (o.value === '__property__' && r.field.startsWith('properties.')))
+    const fieldLabel = r.field.startsWith('properties.') ? r.field.replace('properties.', 'prop: ') : (fl?.label ?? r.field)
+    const opLabel = OPS[fieldType(r.field)]?.find(o => o.value === r.op)?.label ?? r.op
+    parts.push(`${fieldLabel} ${opLabel} "${r.value}"`)
+  }
   return parts.join(' · ') || 'matches all'
 }
 
@@ -84,6 +152,107 @@ function ComponentRow({
   )
 }
 
+function RuleRow({
+  rule,
+  onChange,
+  onDelete,
+}: {
+  rule: MatchRule
+  onChange: (r: MatchRule) => void
+  onDelete: () => void
+}) {
+  const inp = 'border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-full'
+
+  // Detect if it's a properties.* field
+  const isProperty = rule.field.startsWith('properties.')
+  const propKey = isProperty ? rule.field.replace('properties.', '') : ''
+  const displayField = isProperty ? '__property__' : rule.field
+  const ft = fieldType(rule.field)
+  const ops = OPS[ft]
+
+  const handleFieldChange = (val: string) => {
+    if (val === '__property__') {
+      onChange({ field: 'properties.', op: 'contains', value: '' })
+    } else {
+      const newFt = fieldType(val)
+      onChange({ field: val, op: defaultOp(newFt), value: newFt === 'boolean' ? 'true' : '' })
+    }
+  }
+
+  const handlePropKeyChange = (key: string) => {
+    onChange({ ...rule, field: `properties.${key}` })
+  }
+
+  return (
+    <tr className="group">
+      {/* Field selector */}
+      <td className="p-1 w-44">
+        <select className={inp} value={displayField} onChange={e => handleFieldChange(e.target.value)}>
+          {(['Element', 'Quantities', 'Property'] as const).map(group => (
+            <optgroup key={group} label={group}>
+              {FIELD_OPTIONS.filter(o => o.group === group).map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </td>
+
+      {/* Property key input (only shown for properties.* fields) */}
+      {isProperty && (
+        <td className="p-1 w-32">
+          <input
+            className={inp}
+            value={propKey}
+            placeholder="property key"
+            onChange={e => handlePropKeyChange(e.target.value)}
+          />
+        </td>
+      )}
+
+      {/* Operator */}
+      <td className={`p-1 ${isProperty ? 'w-36' : 'w-44'}`}>
+        <select className={inp} value={rule.op} onChange={e => onChange({ ...rule, op: e.target.value })}>
+          {ops.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </td>
+
+      {/* Value */}
+      <td className="p-1">
+        {ft === 'boolean' ? (
+          <select className={inp} value={String(rule.value)} onChange={e => onChange({ ...rule, value: e.target.value === 'true' })}>
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        ) : ft === 'number' ? (
+          <input
+            type="number"
+            step="any"
+            className={inp}
+            value={rule.value as number}
+            onChange={e => onChange({ ...rule, value: parseFloat(e.target.value) || 0 })}
+          />
+        ) : (
+          <input
+            className={inp}
+            value={rule.value as string}
+            placeholder="value"
+            onChange={e => onChange({ ...rule, value: e.target.value })}
+          />
+        )}
+      </td>
+
+      {/* Delete */}
+      <td className="p-1 w-7 text-center">
+        <button
+          onClick={onDelete}
+          className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity text-base leading-none"
+        >×</button>
+      </td>
+    </tr>
+  )
+}
+
 function MatchEditor({
   match,
   onChange,
@@ -92,95 +261,118 @@ function MatchEditor({
   onChange: (m: MatchCriteria) => void
 }) {
   const inp = 'border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 w-full'
-  const label = 'block text-xs text-gray-500 mb-1'
 
-  // ifc_type vs ifc_type_in mode
   const multiMode = !!match.ifc_type_in
   const toggleMode = () => {
     if (multiMode) {
-      const first = match.ifc_type_in?.[0] ?? 'IfcWall'
-      onChange({ ...match, ifc_type: first, ifc_type_in: undefined })
+      onChange({ ...match, ifc_type: match.ifc_type_in?.[0] ?? 'IfcWall', ifc_type_in: undefined })
     } else {
       onChange({ ...match, ifc_type_in: match.ifc_type ? [match.ifc_type] : ['IfcWall'], ifc_type: undefined })
     }
   }
 
+  const rules = match.rules ?? []
+  const setRules = (r: MatchRule[]) => onChange({ ...match, rules: r.length ? r : undefined })
+  const addRule    = () => setRules([...rules, newRule()])
+  const updateRule = (i: number, r: MatchRule) => setRules(rules.map((x, j) => j === i ? r : x))
+  const deleteRule = (i: number) => setRules(rules.filter((_, j) => j !== i))
+
   return (
-    <div className="grid grid-cols-2 gap-3 text-sm">
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <span className={label.replace('mb-1', '')}>IFC Type</span>
-          <button onClick={toggleMode} className="text-[10px] text-blue-500 hover:underline">
-            {multiMode ? 'switch to single' : 'allow multiple'}
-          </button>
-        </div>
-        {multiMode ? (
-          <div className="space-y-1">
-            {(match.ifc_type_in ?? []).map((t, i) => (
-              <div key={i} className="flex gap-1">
-                <select
-                  className={inp}
-                  value={t}
-                  onChange={e => {
-                    const updated = [...(match.ifc_type_in ?? [])]
-                    updated[i] = e.target.value
-                    onChange({ ...match, ifc_type_in: updated })
-                  }}
-                >
-                  {IFC_TYPES.map(type => <option key={type}>{type}</option>)}
-                </select>
-                <button
-                  onClick={() => {
-                    const updated = (match.ifc_type_in ?? []).filter((_, j) => j !== i)
-                    onChange({ ...match, ifc_type_in: updated.length ? updated : ['IfcWall'] })
-                  }}
-                  className="text-red-400 hover:text-red-600 px-1"
-                >×</button>
-              </div>
-            ))}
-            <button
-              onClick={() => onChange({ ...match, ifc_type_in: [...(match.ifc_type_in ?? []), 'IfcWall'] })}
-              className="text-xs text-blue-500 hover:underline"
-            >+ add type</button>
+    <div className="space-y-3 text-sm">
+      {/* Row 1 — IFC type + is_external */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-gray-500">IFC Type</span>
+            <button onClick={toggleMode} className="text-[10px] text-blue-500 hover:underline">
+              {multiMode ? 'single type' : 'multiple types'}
+            </button>
           </div>
-        ) : (
-          <select
-            className={inp}
-            value={match.ifc_type ?? ''}
-            onChange={e => onChange({ ...match, ifc_type: e.target.value })}
-          >
-            <option value="">(any type)</option>
-            {IFC_TYPES.map(t => <option key={t}>{t}</option>)}
+          {multiMode ? (
+            <div className="space-y-1">
+              {(match.ifc_type_in ?? []).map((t, i) => (
+                <div key={i} className="flex gap-1">
+                  <select className={inp} value={t} onChange={e => {
+                    const u = [...(match.ifc_type_in ?? [])]
+                    u[i] = e.target.value
+                    onChange({ ...match, ifc_type_in: u })
+                  }}>
+                    {IFC_TYPES.map(type => <option key={type}>{type}</option>)}
+                  </select>
+                  <button onClick={() => {
+                    const u = (match.ifc_type_in ?? []).filter((_, j) => j !== i)
+                    onChange({ ...match, ifc_type_in: u.length ? u : ['IfcWall'] })
+                  }} className="text-red-400 hover:text-red-600 px-1">×</button>
+                </div>
+              ))}
+              <button onClick={() => onChange({ ...match, ifc_type_in: [...(match.ifc_type_in ?? []), 'IfcWall'] })}
+                className="text-xs text-blue-500 hover:underline">+ add type</button>
+            </div>
+          ) : (
+            <select className={inp} value={match.ifc_type ?? ''}
+              onChange={e => onChange({ ...match, ifc_type: e.target.value || undefined })}>
+              <option value="">(any type)</option>
+              {IFC_TYPES.map(t => <option key={t}>{t}</option>)}
+            </select>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Is External</label>
+          <select className={inp}
+            value={match.is_external === undefined ? '' : String(match.is_external)}
+            onChange={e => {
+              const v = e.target.value
+              onChange({ ...match, is_external: v === '' ? undefined : v === 'true' })
+            }}>
+            <option value="">Any</option>
+            <option value="true">External only</option>
+            <option value="false">Internal only</option>
           </select>
+        </div>
+      </div>
+
+      {/* Conditions table */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs font-semibold text-gray-600">Conditions</span>
+          <span className="text-[10px] text-gray-400">All conditions must match (AND logic)</span>
+        </div>
+
+        {rules.length > 0 && (
+          <div className="border border-gray-200 rounded overflow-x-auto mb-1.5">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-500">
+                <tr>
+                  <th className="text-left p-1.5 font-medium">Field</th>
+                  <th className="text-left p-1.5 font-medium">Operator</th>
+                  <th className="text-left p-1.5 font-medium">Value</th>
+                  <th className="w-7" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {rules.map((rule, i) => (
+                  <RuleRow
+                    key={i}
+                    rule={rule}
+                    onChange={r => updateRule(i, r)}
+                    onDelete={() => deleteRule(i)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
 
-      <div>
-        <label className={label}>Is External</label>
-        <select
-          className={inp}
-          value={match.is_external === undefined ? '' : String(match.is_external)}
-          onChange={e => {
-            const v = e.target.value
-            onChange({ ...match, is_external: v === '' ? undefined : v === 'true' })
-          }}
-        >
-          <option value="">Any</option>
-          <option value="true">External only</option>
-          <option value="false">Internal only</option>
-        </select>
-      </div>
+        <button onClick={addRule} className="text-xs text-blue-600 hover:underline">
+          + Add condition
+        </button>
 
-      <div>
-        <label className={label}>Material contains</label>
-        <input className={inp} value={match.material_contains ?? ''} placeholder='e.g. "concrete"'
-          onChange={e => onChange({ ...match, material_contains: e.target.value || undefined })} />
-      </div>
-
-      <div>
-        <label className={label}>Type name contains</label>
-        <input className={inp} value={match.type_name_contains ?? ''} placeholder='e.g. "weatherboard"'
-          onChange={e => onChange({ ...match, type_name_contains: e.target.value || undefined })} />
+        {rules.length === 0 && (
+          <p className="text-[10px] text-gray-400 ml-3 inline">
+            — no extra conditions, matches on IFC type and Is External only
+          </p>
+        )}
       </div>
     </div>
   )

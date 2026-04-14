@@ -107,34 +107,125 @@ def reload_library() -> None:
 
 # ── Matching ──────────────────────────────────────────────────────────────────
 
+def _get_field_value(element: QuantityRecord, field: str) -> Any:
+    """Extract a named field value from an element for rule evaluation."""
+    _simple: dict[str, Any] = {
+        "ifc_type":          element.ifc_type,
+        "name":              element.name or "",
+        "type_name":         element.type_name or "",
+        "type_class":        element.type_class or "",
+        "storey":            element.storey or "",
+        "material":          element.material or "",
+        "is_external":       element.is_external,
+        "quantities.length": element.quantities.length or 0.0,
+        "quantities.area":   element.quantities.area   or 0.0,
+        "quantities.volume": element.quantities.volume or 0.0,
+        "quantities.count":  float(element.quantities.count),
+        "quantities.weight": element.quantities.weight or 0.0,
+    }
+    if field in _simple:
+        return _simple[field]
+    if field.startswith("properties."):
+        return element.properties.get(field[len("properties."):])
+    return None
+
+
+def _apply_operator(actual: Any, op: str, value: Any) -> bool:
+    """Apply a comparison operator between an element field value and a match value."""
+    if actual is None:
+        return op in ("not_equals", "not_contains", "not_in")
+
+    # String operators (all case-insensitive)
+    if op == "contains":
+        return str(value).lower() in str(actual).lower()
+    if op == "not_contains":
+        return str(value).lower() not in str(actual).lower()
+    if op == "starts_with":
+        return str(actual).lower().startswith(str(value).lower())
+    if op == "ends_with":
+        return str(actual).lower().endswith(str(value).lower())
+
+    # Equality — booleans compared as bool, strings case-insensitive, else direct
+    if op == "equals":
+        if isinstance(actual, bool) or isinstance(value, bool):
+            return bool(actual) == bool(value)
+        if isinstance(actual, str):
+            return actual.lower() == str(value).lower()
+        return actual == value
+    if op == "not_equals":
+        if isinstance(actual, bool) or isinstance(value, bool):
+            return bool(actual) != bool(value)
+        if isinstance(actual, str):
+            return actual.lower() != str(value).lower()
+        return actual != value
+
+    # Membership
+    if op == "in":
+        return actual in (value if isinstance(value, list) else [value])
+    if op == "not_in":
+        return actual not in (value if isinstance(value, list) else [value])
+
+    # Numeric comparisons
+    try:
+        a, v = float(actual), float(value)
+        if op == "gt":  return a > v
+        if op == "gte": return a >= v
+        if op == "lt":  return a < v
+        if op == "lte": return a <= v
+    except (TypeError, ValueError):
+        pass
+
+    logger.warning("Unknown match operator %r — condition ignored", op)
+    return True  # unknown operator is non-fatal: treat as passing
+
+
 def _matches(element: QuantityRecord, criteria: dict) -> bool:
-    """Return True if *element* satisfies all criteria in the match dict."""
-    for key, value in criteria.items():
+    """Return True if *element* satisfies ALL criteria (AND logic).
 
-        if key == "ifc_type":
-            if element.ifc_type != value:
-                return False
+    Supports two formats — both may be present simultaneously:
 
-        elif key == "ifc_type_in":
-            if element.ifc_type not in value:
-                return False
+    Legacy keys (backward-compatible):
+        ifc_type, ifc_type_in, is_external, material_contains, type_name_contains
 
-        elif key == "is_external":
-            if element.is_external != value:
-                return False
+    Rules array (new, expressive):
+        "rules": [{"field": "material", "op": "contains", "value": "timber"}, ...]
 
-        elif key == "material_contains":
-            mat = (element.material or "").lower()
-            if value.lower() not in mat:
-                return False
+    Available fields for rules:
+        ifc_type, name, type_name, type_class, storey, material, is_external
+        quantities.length / .area / .volume / .count / .weight
+        properties.<key>   (arbitrary Pset property)
 
-        elif key == "type_name_contains":
-            tn = (element.type_name or "").lower()
-            if value.lower() not in tn:
-                return False
+    Available operators:
+        String:  contains, not_contains, equals, not_equals, starts_with, ends_with
+        Number:  equals, not_equals, gt, gte, lt, lte
+        List:    in, not_in
+    """
+    # ── Legacy keys ────────────────────────────────────────────────────────────
+    if "ifc_type" in criteria and element.ifc_type != criteria["ifc_type"]:
+        return False
 
-        else:
-            logger.warning("Unknown match criterion %r — ignored", key)
+    if "ifc_type_in" in criteria and element.ifc_type not in criteria["ifc_type_in"]:
+        return False
+
+    if "is_external" in criteria and element.is_external != criteria["is_external"]:
+        return False
+
+    if "material_contains" in criteria:
+        if criteria["material_contains"].lower() not in (element.material or "").lower():
+            return False
+
+    if "type_name_contains" in criteria:
+        if criteria["type_name_contains"].lower() not in (element.type_name or "").lower():
+            return False
+
+    # ── Rules array ────────────────────────────────────────────────────────────
+    for rule in criteria.get("rules", []):
+        field  = rule.get("field", "")
+        op     = rule.get("op", "equals")
+        value  = rule.get("value")
+        actual = _get_field_value(element, field)
+        if not _apply_operator(actual, op, value):
+            return False
 
     return True
 

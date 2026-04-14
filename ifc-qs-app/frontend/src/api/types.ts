@@ -101,12 +101,21 @@ export interface LibraryComponent {
   notes?: string
 }
 
+export interface MatchRule {
+  field: string   // e.g. "material", "type_name", "quantities.area", "properties.LoadBearing"
+  op: string      // e.g. "contains", "equals", "gte"
+  value: string | number | boolean
+}
+
 export interface MatchCriteria {
+  // Legacy keys (still supported for backward compat)
   ifc_type?: string
   ifc_type_in?: string[]
   is_external?: boolean
   material_contains?: string
   type_name_contains?: string
+  // Extended conditions
+  rules?: MatchRule[]
 }
 
 export interface AssemblyRecipe {
