@@ -6,6 +6,7 @@ import { ElementDetailPanel } from './components/ElementDetailPanel'
 import { ExportBar } from './components/ExportBar'
 import { FileLibrary } from './components/FileLibrary'
 import { FileUpload } from './components/FileUpload'
+import { HelpPage } from './components/HelpPage'
 import { IFCTree } from './components/IFCTree'
 import { IFCViewer } from './components/IFCViewer'
 import { LoginPage } from './components/LoginPage'
@@ -30,6 +31,9 @@ type AppState =
   | { phase: 'ready'; summary: ModelSummary }
 
 export default function App() {
+  // ── Help page — hash route, no auth required ─────────────────────────────────
+  if (window.location.hash === '#help') return <HelpPage />
+
   // ── Auth gate ────────────────────────────────────────────────────────────────
   const [authed, setAuthed] = useState<boolean | null>(null) // null = checking
 
@@ -210,6 +214,13 @@ function AppInner({ onLogout }: { onLogout: () => void }) {
           </div>
           <div className="flex items-center gap-3">
             <ExportBar fileId={summary.file_id} />
+            <button
+              onClick={() => window.open('/#help', '_blank')}
+              className="text-xs text-gray-400 hover:text-gray-700 transition-colors w-6 h-6 rounded-full border border-gray-300 hover:border-gray-400 flex items-center justify-center font-semibold"
+              title="Help & documentation"
+            >
+              ?
+            </button>
             <button
               onClick={onLogout}
               className="text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-1"
